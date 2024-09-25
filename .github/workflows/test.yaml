@@ -11,7 +11,7 @@ jobs:
         package:
           - otlptracejson
           - otlpmetricjson
-          - otlplogpjson
+          - otlplogjson
     name: Build
     runs-on: ubuntu-latest
     steps:
