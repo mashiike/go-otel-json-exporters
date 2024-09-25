@@ -1,7 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: gomod
-    directory: "/"
+    directory: "/otlptracejson"
     schedule:
       interval: weekly
       time: "20:00"
@@ -11,6 +11,45 @@ updates:
         update-types: ["version-update:semver-patch"]
     labels:
       - "dependencies"
+      - "otlptracejson"
+    groups:
+      aws-sdk-go-v2:
+        patterns:
+          - "github.com/aws/aws-sdk-go-v2/*"
+      open-telemetry:
+        patterns:
+          - "go.opentelemetry.io/*"
+  - package-ecosystem: gomod
+    directory: "/otlpmetricjson"
+    schedule:
+      interval: weekly
+      time: "20:00"
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "aws*"
+        update-types: ["version-update:semver-patch"]
+    labels:
+      - "dependencies"
+      - "otlpmetricjson"
+    groups:
+      aws-sdk-go-v2:
+        patterns:
+          - "github.com/aws/aws-sdk-go-v2/*"
+      open-telemetry:
+        patterns:
+          - "go.opentelemetry.io/*"
+  - package-ecosystem: gomod
+    directory: "/otlplogjson"
+    schedule:
+      interval: weekly
+      time: "20:00"
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "aws*"
+        update-types: ["version-update:semver-patch"]
+    labels:
+      - "dependencies"
+      - "otlplogjson"
     groups:
       aws-sdk-go-v2:
         patterns:
