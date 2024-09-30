@@ -3,24 +3,23 @@ package otlplogjson
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 
+	"github.com/mashiike/go-otlp-helper/otlp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/sdk/log"
 	collogpb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 	logpb "go.opentelemetry.io/proto/otlp/logs/v1"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
 
 type options struct {
-	writer    io.Writer
-	marshaler protojson.MarshalOptions
-	implOpts  []otlploghttp.Option
+	writer   io.Writer
+	enc      *otlp.JSONEncoder
+	implOpts []otlploghttp.Option
 }
 
 type Option func(*options)
@@ -28,8 +27,7 @@ type Option func(*options)
 // WithPrettyPrint prettifies the emitted output.
 func WithPrettyPrint() Option {
 	return func(o *options) {
-		o.marshaler.Multiline = true
-		o.marshaler.Indent = "  "
+		o.enc.SetIndent("  ")
 	}
 }
 
@@ -37,6 +35,7 @@ func WithPrettyPrint() Option {
 func WithWriter(w io.Writer) Option {
 	return func(o *options) {
 		o.writer = w
+		o.enc = otlp.NewJSONEncoder(w)
 	}
 }
 
@@ -49,8 +48,8 @@ var _ log.Exporter = &Exporter{}
 
 func New(ctx context.Context, opts ...Option) (*Exporter, error) {
 	o := options{
-		writer:    os.Stdout,
-		marshaler: protojson.MarshalOptions{},
+		writer: os.Stdout,
+		enc:    otlp.NewJSONEncoder(os.Stdout),
 	}
 	for _, opt := range opts {
 		opt(&o)
@@ -78,15 +77,17 @@ func (e *Exporter) httpTransportProxy(req *http.Request) (*url.URL, error) {
 	if err := proto.Unmarshal(bs, &svcReq); err != nil {
 		return nil, err
 	}
+	rl := svcReq.GetResourceLogs()
 	data := logpb.LogsData{
-		ResourceLogs: make([]*logpb.ResourceLogs, len(svcReq.ResourceLogs)),
+		ResourceLogs: make([]*logpb.ResourceLogs, len(rl)),
 	}
-	copy(data.ResourceLogs, svcReq.ResourceLogs)
-	bs, err = e.options.marshaler.Marshal(&data)
-	if err != nil {
+	copy(data.ResourceLogs, rl)
+	if err := e.options.enc.Encode(&data); err != nil {
 		return nil, err
 	}
-	fmt.Fprintln(e.options.writer, string(bs))
+	if _, err := e.options.writer.Write([]byte("\n")); err != nil {
+		return nil, err
+	}
 	return nil, errExported
 }
 

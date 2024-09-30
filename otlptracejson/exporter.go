@@ -5,14 +5,14 @@ import (
 	"io"
 	"os"
 
+	"github.com/mashiike/go-otlp-helper/otlp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 type options struct {
-	writer    io.Writer
-	marshaler protojson.MarshalOptions
+	writer io.Writer
+	enc    *otlp.JSONEncoder
 }
 
 type Option func(*options)
@@ -20,8 +20,7 @@ type Option func(*options)
 // WithPrettyPrint prettifies the emitted output.
 func WithPrettyPrint() Option {
 	return func(o *options) {
-		o.marshaler.Multiline = true
-		o.marshaler.Indent = "  "
+		o.enc.SetIndent("  ")
 	}
 }
 
@@ -29,6 +28,7 @@ func WithPrettyPrint() Option {
 func WithWriter(w io.Writer) Option {
 	return func(o *options) {
 		o.writer = w
+		o.enc = otlp.NewJSONEncoder(w)
 	}
 }
 
@@ -51,6 +51,7 @@ var _ otlptrace.Client = &Client{}
 func NewClient(opts ...Option) *Client {
 	o := options{
 		writer: os.Stdout,
+		enc:    otlp.NewJSONEncoder(os.Stdout),
 	}
 	for _, opt := range opts {
 		opt(&o)
@@ -72,14 +73,12 @@ func (c *Client) UploadTraces(ctx context.Context, protoSpans []*tracepb.Resourc
 	data := &tracepb.TracesData{
 		ResourceSpans: protoSpans,
 	}
-	bs, err := c.options.marshaler.Marshal(data)
-	if err != nil {
+
+	if err := c.options.enc.Encode(data); err != nil {
 		return err
 	}
-	_, err = c.options.writer.Write(bs)
-	if err != nil {
+	if _, err := c.options.writer.Write([]byte("\n")); err != nil {
 		return err
 	}
-	_, err = c.options.writer.Write([]byte("\n"))
-	return err
+	return nil
 }

@@ -3,25 +3,24 @@ package otlpmetricjson
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 
+	"github.com/mashiike/go-otlp-helper/otlp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	colmetricpb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	metricpb "go.opentelemetry.io/proto/otlp/metrics/v1"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
 
 type options struct {
-	writer    io.Writer
-	marshaler protojson.MarshalOptions
-	implOpts  []otlpmetrichttp.Option
+	writer   io.Writer
+	enc      *otlp.JSONEncoder
+	implOpts []otlpmetrichttp.Option
 }
 
 type Option func(*options)
@@ -29,8 +28,7 @@ type Option func(*options)
 // WithPrettyPrint prettifies the emitted output.
 func WithPrettyPrint() Option {
 	return func(o *options) {
-		o.marshaler.Multiline = true
-		o.marshaler.Indent = "  "
+		o.enc.SetIndent("  ")
 	}
 }
 
@@ -38,6 +36,7 @@ func WithPrettyPrint() Option {
 func WithWriter(w io.Writer) Option {
 	return func(o *options) {
 		o.writer = w
+		o.enc = otlp.NewJSONEncoder(w)
 	}
 }
 
@@ -64,8 +63,8 @@ var _ metric.Exporter = &Exporter{}
 
 func New(ctx context.Context, opts ...Option) (*Exporter, error) {
 	o := options{
-		writer:    os.Stdout,
-		marshaler: protojson.MarshalOptions{},
+		writer: os.Stdout,
+		enc:    otlp.NewJSONEncoder(os.Stdout),
 	}
 	for _, opt := range opts {
 		opt(&o)
@@ -93,15 +92,17 @@ func (e *Exporter) httpTransportProxy(req *http.Request) (*url.URL, error) {
 	if err := proto.Unmarshal(bs, &svcReq); err != nil {
 		return nil, err
 	}
+	rm := svcReq.GetResourceMetrics()
 	data := metricpb.MetricsData{
-		ResourceMetrics: make([]*metricpb.ResourceMetrics, len(svcReq.ResourceMetrics)),
+		ResourceMetrics: make([]*metricpb.ResourceMetrics, len(rm)),
 	}
-	copy(data.ResourceMetrics, svcReq.ResourceMetrics)
-	bs, err = e.options.marshaler.Marshal(&data)
-	if err != nil {
+	copy(data.ResourceMetrics, rm)
+	if err := e.options.enc.Encode(&data); err != nil {
 		return nil, err
 	}
-	fmt.Fprintln(e.options.writer, string(bs))
+	if _, err := e.options.writer.Write([]byte("\n")); err != nil {
+		return nil, err
+	}
 	return nil, errExported
 }
 
