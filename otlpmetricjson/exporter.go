@@ -92,10 +92,11 @@ func (e *Exporter) httpTransportProxy(req *http.Request) (*url.URL, error) {
 	if err := proto.Unmarshal(bs, &svcReq); err != nil {
 		return nil, err
 	}
+	rm := svcReq.GetResourceMetrics()
 	data := metricpb.MetricsData{
-		ResourceMetrics: make([]*metricpb.ResourceMetrics, len(svcReq.ResourceMetrics)),
+		ResourceMetrics: make([]*metricpb.ResourceMetrics, len(rm)),
 	}
-	copy(data.ResourceMetrics, svcReq.ResourceMetrics)
+	copy(data.ResourceMetrics, rm)
 	if err := e.options.enc.Encode(&data); err != nil {
 		return nil, err
 	}

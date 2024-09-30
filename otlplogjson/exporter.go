@@ -77,10 +77,11 @@ func (e *Exporter) httpTransportProxy(req *http.Request) (*url.URL, error) {
 	if err := proto.Unmarshal(bs, &svcReq); err != nil {
 		return nil, err
 	}
+	rl := svcReq.GetResourceLogs()
 	data := logpb.LogsData{
-		ResourceLogs: make([]*logpb.ResourceLogs, len(svcReq.ResourceLogs)),
+		ResourceLogs: make([]*logpb.ResourceLogs, len(rl)),
 	}
-	copy(data.ResourceLogs, svcReq.ResourceLogs)
+	copy(data.ResourceLogs, rl)
 	if err := e.options.enc.Encode(&data); err != nil {
 		return nil, err
 	}
